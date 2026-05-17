@@ -4,7 +4,7 @@ set -euo pipefail
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
 BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-7}"
 RCLONE_KEEP_DAYS="${RCLONE_KEEP_DAYS:-30}"
-RCLONE_CONFIG="${RCLONE_CONFIG:-/config/rclone.conf}"
+RCLONE_CONFIG="${RCLONE_CONFIG:-/var/lib/rclone/rclone.conf}"
 RCLONE_REMOTE="${RCLONE_REMOTE:-gdrive}"
 RCLONE_PATH="${RCLONE_PATH:-Backups/default}"
 UPLOAD_ENABLED="${UPLOAD_ENABLED:-true}"
@@ -53,7 +53,9 @@ ensure_rclone_remote_path() {
     else
       built="${built}/${part}"
     fi
-    rclone mkdir "${RCLONE_REMOTE}:${built}" --config "$RCLONE_CONFIG" 2>/dev/null || true
+    if ! rclone mkdir "${RCLONE_REMOTE}:${built}" --config "$RCLONE_CONFIG" 2>&1; then
+      log "mkdir ${RCLONE_REMOTE}:${built} (may already exist)"
+    fi
   done
 }
 
@@ -84,6 +86,13 @@ upload_to_remote() {
   log "Ensuring Google Drive path exists: ${base_remote}"
   ensure_rclone_remote_path "$base_path"
   ensure_rclone_remote_path "${base_path}/latest"
+
+  if ! rclone lsd "$base_remote" --config "$RCLONE_CONFIG" >/dev/null 2>&1; then
+    log "ERROR: cannot access remote path ${base_remote}"
+    log "Check RCLONE_REMOTE (${RCLONE_REMOTE}) matches: rclone listremotes"
+    rclone listremotes --config "$RCLONE_CONFIG" 2>&1 | while read -r line; do log "$line"; done
+    exit 1
+  fi
 
   log "Uploading ${RUN_DIR} to ${remote}"
   rclone copy "$RUN_DIR" "$remote" --config "$RCLONE_CONFIG"

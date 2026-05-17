@@ -29,7 +29,7 @@ RUN chmod +x /docker-entrypoint.sh /scripts/backup.sh /scripts/lib/*.sh
 USER root
 
 ENV BACKUP_DIR=/backups
-ENV RCLONE_CONFIG=/config/rclone/rclone.conf
+ENV RCLONE_CONFIG=/var/lib/rclone/rclone.conf
 ENV SCHEDULE_ENABLED=true
 ENV UPLOAD_ENABLED=true
 
