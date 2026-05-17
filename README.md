@@ -133,8 +133,38 @@ Backup logs go to `docker compose logs db-backup` (stdout).
 |---------|-----|
 | `rclone config not found` | Set `RCLONE_CONFIG_DIR` to the host rclone folder; mount dir not file |
 | `not a directory` / mount error | Host path was missing — Docker created a directory named `rclone.conf`; remove it and mount `~/.config/rclone` instead |
-| Google Drive `404: File not found` | Token/path issue — rebuild image; config is copied to writable `/var/lib/rclone/rclone.conf` |
+| Google Drive `404: File not found` | Almost always **rclone scope** or **Shared drive** config — see below |
 | `read-only file system` on rclone.conf | Fixed: entrypoint copies mounted config to `/var/lib/rclone/rclone.conf` for OAuth token refresh |
+
+### Google Drive 404 — fix on the host
+
+Run as the user whose config you mount (`aztech`):
+
+```bash
+rclone --config ~/.config/rclone/rclone.conf listremotes
+rclone --config ~/.config/rclone/rclone.conf lsd gdrive:
+```
+
+If `lsd gdrive:` fails with 404:
+
+1. **Re-authorize with full Drive scope** (not `drive.file`):
+   ```bash
+   rclone config reconnect gdrive
+   ```
+   When asked for scope, pick **full access** (`drive`). `drive.file` cannot list/create arbitrary folders → 404.
+
+2. **Shared drive (Google Workspace):** edit `~/.config/rclone/rclone.conf` and set `team_drive = <shared_drive_id>`, or set in compose:
+   ```env
+   RCLONE_DRIVE_ROOT_FOLDER_ID=<folder_id_from_drive_url>
+   ```
+
+3. **Smoke test** after reconnect:
+   ```bash
+   rclone mkdir gdrive:backups-test
+   rclone rmdir gdrive:backups-test
+   ```
+
+Then recreate `db-backup` container.
 | `rclone config not readable` | Image runs as `root`; keep `chmod 600` on the host file |
 | `cannot connect to PostgreSQL` | Check `DB_HOST=db`, same compose network, `DB_PASSWORD` matches `db` service |
 | `exit status 1` with no detail | Rebuild image after updates; run `docker compose run --rm -e RUN_ONCE=true -e SCHEDULE_ENABLED=false db-backup` |

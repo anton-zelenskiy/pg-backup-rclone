@@ -36,27 +36,37 @@ apply_local_retention() {
   find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -mtime "+${BACKUP_KEEP_DAYS}" -exec rm -rf {} +
 }
 
-# rclone mkdir has no -p; create each path segment (e.g. backups, then backups/market-crm)
-ensure_rclone_remote_path() {
-  local rel_path="$1"
-  local built="" part
-  local -a parts
+rclone_global_flags() {
+  RCLONE_GLOBAL_FLAGS=()
+  if [ -n "${RCLONE_DRIVE_ROOT_FOLDER_ID:-}" ]; then
+    RCLONE_GLOBAL_FLAGS+=(--drive-root-folder-id "${RCLONE_DRIVE_ROOT_FOLDER_ID}")
+  fi
+}
 
-  rel_path="${rel_path#/}"
-  rel_path="${rel_path%/}"
-  [ -z "$rel_path" ] && return 0
+verify_rclone_remote() {
+  local root="${RCLONE_REMOTE}:"
+  local output
 
-  IFS='/' read -ra parts <<< "$rel_path"
-  for part in "${parts[@]}"; do
-    if [ -z "$built" ]; then
-      built="$part"
-    else
-      built="${built}/${part}"
-    fi
-    if ! rclone mkdir "${RCLONE_REMOTE}:${built}" --config "$RCLONE_CONFIG" 2>&1; then
-      log "mkdir ${RCLONE_REMOTE}:${built} (may already exist)"
-    fi
+  log "Configured remotes:"
+  rclone listremotes --config "$RCLONE_CONFIG" 2>&1 | while read -r line; do
+    log "  ${line}"
   done
+
+  log "Checking access to ${root}"
+  if output=$(rclone lsd "$root" --config "$RCLONE_CONFIG" "${RCLONE_GLOBAL_FLAGS[@]}" 2>&1); then
+    log "Google Drive root is accessible"
+    return 0
+  fi
+
+  log "$output"
+  log "ERROR: cannot list Google Drive (${root})."
+  log "Common fixes on the host (as the user who owns rclone.conf):"
+  log "  1. rclone config reconnect ${RCLONE_REMOTE}"
+  log "     Choose scope: full access (drive), NOT drive.file"
+  log "  2. Shared drive: add team_drive = <id> to rclone.conf, or set RCLONE_DRIVE_ROOT_FOLDER_ID"
+  log "  3. Test: rclone lsd ${root}"
+  log "  4. Test: rclone mkdir ${root}backups-test && rclone rmdir ${root}backups-test"
+  exit 1
 }
 
 upload_to_remote() {
@@ -67,41 +77,34 @@ upload_to_remote() {
 
   if [ ! -f "${RCLONE_CONFIG}" ]; then
     log "ERROR: rclone config not found at ${RCLONE_CONFIG}"
-    log "Hint: mount host dir, e.g. /home/user/.config/rclone:/config/rclone:ro and RCLONE_CONFIG=/config/rclone/rclone.conf"
     exit 1
   fi
   if [ ! -r "${RCLONE_CONFIG}" ]; then
     log "ERROR: rclone config not readable: ${RCLONE_CONFIG}"
-    log "Hint: image runs as root; on host run chmod 600 and ensure the file exists"
     exit 1
   fi
 
   export RCLONE_CONFIG
+  rclone_global_flags
+
   local base_path="${RCLONE_PATH#/}"
   base_path="${base_path%/}"
-  local base_remote="${RCLONE_REMOTE}:${base_path}"
-  local remote="${base_remote}/${TIMESTAMP}"
-  local latest_remote="${base_remote}/latest"
+  local remote="${RCLONE_REMOTE}:${base_path}/${TIMESTAMP}"
+  local latest_remote="${RCLONE_REMOTE}:${base_path}/latest"
 
-  log "Ensuring Google Drive path exists: ${base_remote}"
-  ensure_rclone_remote_path "$base_path"
-  ensure_rclone_remote_path "${base_path}/latest"
-
-  if ! rclone lsd "$base_remote" --config "$RCLONE_CONFIG" >/dev/null 2>&1; then
-    log "ERROR: cannot access remote path ${base_remote}"
-    log "Check RCLONE_REMOTE (${RCLONE_REMOTE}) matches: rclone listremotes"
-    rclone listremotes --config "$RCLONE_CONFIG" 2>&1 | while read -r line; do log "$line"; done
-    exit 1
-  fi
+  verify_rclone_remote
 
   log "Uploading ${RUN_DIR} to ${remote}"
-  rclone copy "$RUN_DIR" "$remote" --config "$RCLONE_CONFIG"
-  rclone copy "$RUN_DIR" "$latest_remote" --config "$RCLONE_CONFIG" --delete-before
+  rclone copy "$RUN_DIR" "${remote}/" --config "$RCLONE_CONFIG" "${RCLONE_GLOBAL_FLAGS[@]}"
+  log "Updating ${latest_remote}"
+  rclone copy "$RUN_DIR" "${latest_remote}/" --config "$RCLONE_CONFIG" \
+    "${RCLONE_GLOBAL_FLAGS[@]}" --delete-before
 
   if [ "${RCLONE_KEEP_DAYS}" -gt 0 ] 2>/dev/null; then
-    log "Applying remote retention (${RCLONE_KEEP_DAYS} days)"
-    rclone delete "${base_remote}" \
+    log "Applying remote retention (${RCLONE_KEEP_DAYS} days) under ${RCLONE_REMOTE}:${base_path}"
+    rclone delete "${RCLONE_REMOTE}:${base_path}" \
       --config "$RCLONE_CONFIG" \
+      "${RCLONE_GLOBAL_FLAGS[@]}" \
       --min-age "${RCLONE_KEEP_DAYS}d" \
       --rmdirs || true
   fi
