@@ -12,10 +12,11 @@ log() {
 }
 
 write_crontab() {
+  # supercronic uses standard 5-field cron (no user column like system crontab)
   cat > "$CRONTAB_FILE" <<EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-${BACKUP_CRON} root /scripts/backup.sh >> /var/log/backup.log 2>&1
+${BACKUP_CRON} /scripts/backup.sh >> /var/log/backup.log 2>&1
 EOF
   log "Schedule: ${BACKUP_CRON}"
 }
@@ -38,4 +39,8 @@ fi
 write_crontab
 touch /var/log/backup.log
 log "Starting supercronic"
-exec supercronic -passthrough-logs "$CRONTAB_FILE"
+# Do not exec supercronic: as PID 1 it fails fork/reap on Alpine ("no such file or directory")
+supercronic -passthrough-logs "$CRONTAB_FILE" &
+SUPERCRONIC_PID=$!
+trap 'kill -TERM "$SUPERCRONIC_PID" 2>/dev/null; wait "$SUPERCRONIC_PID"' TERM INT
+wait "$SUPERCRONIC_PID"
