@@ -54,15 +54,23 @@ upload_to_remote() {
   fi
 
   export RCLONE_CONFIG
-  local remote="${RCLONE_REMOTE}:${RCLONE_PATH}/${TIMESTAMP}"
+  local base_path="${RCLONE_PATH#/}"
+  base_path="${base_path%/}"
+  local base_remote="${RCLONE_REMOTE}:${base_path}"
+  local remote="${base_remote}/${TIMESTAMP}"
+  local latest_remote="${base_remote}/latest"
+
+  log "Ensuring Google Drive path exists: ${base_remote}"
+  rclone mkdir "$base_remote" --config "$RCLONE_CONFIG" -p
 
   log "Uploading ${RUN_DIR} to ${remote}"
   rclone copy "$RUN_DIR" "$remote" --config "$RCLONE_CONFIG"
-  rclone copy "$RUN_DIR" "${RCLONE_REMOTE}:${RCLONE_PATH}/latest" --config "$RCLONE_CONFIG"
+  rclone mkdir "$latest_remote" --config "$RCLONE_CONFIG" -p
+  rclone copy "$RUN_DIR" "$latest_remote" --config "$RCLONE_CONFIG" --delete-before
 
   if [ "${RCLONE_KEEP_DAYS}" -gt 0 ] 2>/dev/null; then
     log "Applying remote retention (${RCLONE_KEEP_DAYS} days)"
-    rclone delete "${RCLONE_REMOTE}:${RCLONE_PATH}" \
+    rclone delete "${base_remote}" \
       --config "$RCLONE_CONFIG" \
       --min-age "${RCLONE_KEEP_DAYS}d" \
       --rmdirs || true

@@ -133,6 +133,7 @@ Backup logs go to `docker compose logs db-backup` (stdout).
 |---------|-----|
 | `rclone config not found` | Set `RCLONE_CONFIG_DIR` to the host rclone folder; mount dir not file |
 | `not a directory` / mount error | Host path was missing — Docker created a directory named `rclone.conf`; remove it and mount `~/.config/rclone` instead |
+| Google Drive `404: File not found` | Parent folder missing on Drive — image runs `rclone mkdir -p`; or create manually: `rclone mkdir gdrive:backups/market-crm -p` |
 | `rclone config not readable` | Image runs as `root`; keep `chmod 600` on the host file |
 | `cannot connect to PostgreSQL` | Check `DB_HOST=db`, same compose network, `DB_PASSWORD` matches `db` service |
 | `exit status 1` with no detail | Rebuild image after updates; run `docker compose run --rm -e RUN_ONCE=true -e SCHEDULE_ENABLED=false db-backup` |
