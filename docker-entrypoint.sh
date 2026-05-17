@@ -16,7 +16,7 @@ write_crontab() {
   cat > "$CRONTAB_FILE" <<EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-${BACKUP_CRON} /scripts/backup.sh >> /var/log/backup.log 2>&1
+${BACKUP_CRON} /scripts/backup.sh
 EOF
   log "Schedule: ${BACKUP_CRON}"
 }
@@ -37,7 +37,6 @@ if [ "${RUN_ONCE}" = "true" ] || [ "${SCHEDULE_ENABLED}" != "true" ]; then
 fi
 
 write_crontab
-touch /var/log/backup.log
 log "Starting supercronic"
 # Do not exec supercronic: as PID 1 it fails fork/reap on Alpine ("no such file or directory")
 supercronic -passthrough-logs "$CRONTAB_FILE" &

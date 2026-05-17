@@ -28,9 +28,22 @@ dump_postgres_database() {
   pg_dump -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$database" $PGDUMP_EXTRA | gzip > "$output"
 }
 
+test_postgres_connection() {
+  log "PostgreSQL: ${PGUSER}@${PGHOST}:${PGPORT}"
+  if psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d postgres -Atqc "SELECT 1" >/dev/null 2>&1; then
+    return 0
+  fi
+  log "ERROR: cannot connect to PostgreSQL"
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d postgres -Atqc "SELECT 1" 2>&1 | while read -r line; do
+    log "$line"
+  done || true
+  exit 1
+}
+
 backup_postgres() {
   require_var PGPASSWORD
   ensure_backup_dir
+  test_postgres_connection
 
   local databases=()
   if [ "${BACKUP_ALL_DATABASES}" = "true" ]; then

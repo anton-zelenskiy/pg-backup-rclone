@@ -44,6 +44,12 @@ upload_to_remote() {
 
   if [ ! -f "${RCLONE_CONFIG}" ]; then
     log "ERROR: rclone config not found at ${RCLONE_CONFIG}"
+    log "Hint: mount host dir, e.g. /home/user/.config/rclone:/config/rclone:ro and RCLONE_CONFIG=/config/rclone/rclone.conf"
+    exit 1
+  fi
+  if [ ! -r "${RCLONE_CONFIG}" ]; then
+    log "ERROR: rclone config not readable: ${RCLONE_CONFIG}"
+    log "Hint: image runs as root; on host run chmod 600 and ensure the file exists"
     exit 1
   fi
 

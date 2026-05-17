@@ -25,8 +25,11 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN chmod +x /docker-entrypoint.sh /scripts/backup.sh /scripts/lib/*.sh
 
+# Sidecar only: root so /config/rclone.conf (often chmod 600 on host) is readable
+USER root
+
 ENV BACKUP_DIR=/backups
-ENV RCLONE_CONFIG=/config/rclone.conf
+ENV RCLONE_CONFIG=/config/rclone/rclone.conf
 ENV SCHEDULE_ENABLED=true
 ENV UPLOAD_ENABLED=true
 

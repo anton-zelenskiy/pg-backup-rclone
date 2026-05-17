@@ -17,10 +17,26 @@ Scheduled **PostgreSQL** backups to Google Drive (via [rclone](https://rclone.or
 ### 1. Configure rclone (once per server)
 
 ```bash
-mkdir -p /opt/db-backups/config
 rclone config   # create remote named e.g. "gdrive"
-cp ~/.config/rclone/rclone.conf /opt/db-backups/config/rclone.conf
-chmod 600 /opt/db-backups/config/rclone.conf
+rclone listremotes   # use this name for RCLONE_REMOTE
+```
+
+Default config path: `~/.config/rclone/rclone.conf` (e.g. `/home/aztech/.config/rclone/rclone.conf`).
+
+Mount the **directory** (not the file — Docker creates a folder if the file path is missing):
+
+```yaml
+environment:
+  RCLONE_CONFIG: /config/rclone/rclone.conf
+volumes:
+  - ${RCLONE_CONFIG_DIR:-/home/aztech/.config/rclone}:/config/rclone:ro
+```
+
+Optional in project `.env`:
+
+```env
+RCLONE_CONFIG_DIR=/home/aztech/.config/rclone
+RCLONE_REMOTE=gdrive
 ```
 
 ### 2. Add service to your `docker-compose.yml`
@@ -44,7 +60,7 @@ services:
       RCLONE_REMOTE: gdrive
       RCLONE_PATH: Backups/my-project
     volumes:
-      - /opt/db-backups/config/rclone.conf:/config/rclone.conf:ro
+      - ${RCLONE_CONFIG_DIR:-/home/aztech/.config/rclone}:/config/rclone:ro
       - db_backup_data:/backups
     networks: [app-network]
     depends_on: [db]
@@ -107,6 +123,24 @@ gunzip -c your_db_name.sql.gz | docker compose exec -T db psql -U user -d your_d
 
 ```bash
 docker build -t pg-backup-rclone:local .
+```
+
+## Troubleshooting
+
+Backup logs go to `docker compose logs db-backup` (stdout).
+
+| Symptom | Fix |
+|---------|-----|
+| `rclone config not found` | Set `RCLONE_CONFIG_DIR` to the host rclone folder; mount dir not file |
+| `not a directory` / mount error | Host path was missing — Docker created a directory named `rclone.conf`; remove it and mount `~/.config/rclone` instead |
+| `rclone config not readable` | Image runs as `root`; keep `chmod 600` on the host file |
+| `cannot connect to PostgreSQL` | Check `DB_HOST=db`, same compose network, `DB_PASSWORD` matches `db` service |
+| `exit status 1` with no detail | Rebuild image after updates; run `docker compose run --rm -e RUN_ONCE=true -e SCHEDULE_ENABLED=false db-backup` |
+
+Test without upload:
+
+```bash
+docker compose run --rm -e RUN_ONCE=true -e SCHEDULE_ENABLED=false -e UPLOAD_ENABLED=false db-backup
 ```
 
 ## Security

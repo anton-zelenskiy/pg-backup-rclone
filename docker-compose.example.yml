@@ -19,10 +19,11 @@ services:
       BACKUP_CRON: "0 3 * * 0"
       RCLONE_REMOTE: gdrive
       RCLONE_PATH: Backups/your_backup_folder
+      RCLONE_CONFIG: /config/rclone/rclone.conf
       BACKUP_KEEP_DAYS: "7"
       RCLONE_KEEP_DAYS: "30"
     volumes:
-      - /opt/db-backups/config/rclone.conf:/config/rclone.conf:ro
+      - ${RCLONE_CONFIG_DIR:-/home/aztech/.config/rclone}:/config/rclone:ro
       - db_backup_data:/backups
     networks:
       - default
