@@ -1,0 +1,33 @@
+# Example: PostgreSQL backup sidecar
+# Copy the db-backup service block into your project's docker-compose.yml
+
+services:
+  db-backup:
+    build: .
+    image: pg-backup-rclone:local
+    profiles: ["backup"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER:-your_db_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-your_db_password}
+      DB_NAME: ${POSTGRES_DB:-your_db_name}
+      BACKUP_ALL_DATABASES: "true"
+      BACKUP_CRON: "0 3 * * 0"
+      RCLONE_REMOTE: gdrive
+      RCLONE_PATH: Backups/your_backup_folder
+      BACKUP_KEEP_DAYS: "7"
+      RCLONE_KEEP_DAYS: "30"
+    volumes:
+      - /opt/db-backups/config/rclone.conf:/config/rclone.conf:ro
+      - db_backup_data:/backups
+    networks:
+      - default
+    depends_on:
+      - db
+
+volumes:
+  db_backup_data:
