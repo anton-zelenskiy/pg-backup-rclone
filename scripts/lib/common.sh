@@ -45,6 +45,35 @@ rclone_global_flags() {
   fi
 }
 
+apply_remote_retention() {
+  local base_path="$1"
+  local base="${RCLONE_REMOTE}:${base_path}"
+
+  if [ "${RCLONE_KEEP_DAYS}" -le 0 ] 2>/dev/null; then
+    return 0
+  fi
+
+  log "Applying remote retention (${RCLONE_KEEP_DAYS} days) under ${base}"
+  local cutoff_epoch=$(( $(date +%s) - RCLONE_KEEP_DAYS * 86400 ))
+  local dir_name dir_epoch
+
+  while IFS= read -r dir_name; do
+    dir_name="${dir_name%/}"
+    [ -z "$dir_name" ] && continue
+    [ "$dir_name" = "latest" ] && continue
+    [[ "$dir_name" =~ ^[0-9]{8}_[0-9]{6}$ ]] || continue
+
+    dir_epoch=$(date -D "%Y%m%d %H:%M:%S" -d \
+      "${dir_name:0:8} ${dir_name:9:2}:${dir_name:11:2}:${dir_name:13:2}" +%s 2>/dev/null) || continue
+
+    if [ "$dir_epoch" -lt "$cutoff_epoch" ]; then
+      log "Removing old backup folder: ${base}/${dir_name}"
+      rclone purge "${base}/${dir_name}" --config "$RCLONE_CONFIG" "${RCLONE_GLOBAL_FLAGS[@]}" || \
+        log "WARNING: failed to remove ${dir_name}"
+    fi
+  done < <(rclone lsf "${base}/" --config "$RCLONE_CONFIG" "${RCLONE_GLOBAL_FLAGS[@]}" --dirs-only 2>/dev/null)
+}
+
 verify_rclone_remote() {
   local root="${RCLONE_REMOTE}:"
   local output
@@ -98,14 +127,7 @@ upload_to_remote() {
   rclone copy "$RUN_DIR" "${latest_remote}/" --config "$RCLONE_CONFIG" \
     "${RCLONE_GLOBAL_FLAGS[@]}" --delete-before
 
-  if [ "${RCLONE_KEEP_DAYS}" -gt 0 ] 2>/dev/null; then
-    log "Applying remote retention (${RCLONE_KEEP_DAYS} days) under ${RCLONE_REMOTE}:${base_path}"
-    rclone delete "${RCLONE_REMOTE}:${base_path}" \
-      --config "$RCLONE_CONFIG" \
-      "${RCLONE_GLOBAL_FLAGS[@]}" \
-      --min-age "${RCLONE_KEEP_DAYS}d" \
-      --rmdirs || true
-  fi
+  apply_remote_retention "$base_path"
 }
 
 finish_run() {
