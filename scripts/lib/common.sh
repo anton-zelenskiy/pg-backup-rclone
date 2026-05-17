@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+source /scripts/lib/rclone_config.sh
+
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
 BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-7}"
 RCLONE_KEEP_DAYS="${RCLONE_KEEP_DAYS:-30}"
@@ -75,16 +77,12 @@ upload_to_remote() {
     return 0
   fi
 
-  if [ ! -f "${RCLONE_CONFIG}" ]; then
-    log "ERROR: rclone config not found at ${RCLONE_CONFIG}"
-    exit 1
-  fi
-  if [ ! -r "${RCLONE_CONFIG}" ]; then
-    log "ERROR: rclone config not readable: ${RCLONE_CONFIG}"
-    exit 1
+  prepare_rclone_config || exit 1
+  log "rclone config: ${RCLONE_CONFIG} (from ${RCLONE_CONFIG_SOURCE:-/config/rclone/rclone.conf})"
+  if grep -q '^root_folder_id' "$RCLONE_CONFIG" 2>/dev/null; then
+    log "WARNING: root_folder_id must be a Drive folder ID, not a folder name — remove it or use the ID from the Drive URL"
   fi
 
-  export RCLONE_CONFIG
   rclone_global_flags
 
   local base_path="${RCLONE_PATH#/}"

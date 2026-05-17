@@ -134,7 +134,8 @@ Backup logs go to `docker compose logs db-backup` (stdout).
 | `rclone config not found` | Set `RCLONE_CONFIG_DIR` to the host rclone folder; mount dir not file |
 | `not a directory` / mount error | Host path was missing — Docker created a directory named `rclone.conf`; remove it and mount `~/.config/rclone` instead |
 | Google Drive `404: File not found` | Almost always **rclone scope** or **Shared drive** config — see below |
-| `read-only file system` on rclone.conf | Fixed: entrypoint copies mounted config to `/var/lib/rclone/rclone.conf` for OAuth token refresh |
+| `read-only file system` on rclone.conf | Config copied to writable `/var/lib/rclone/rclone.conf` each backup |
+| Host `lsd` works, container fails | Do not set `RCLONE_CONFIG` in compose — use `RCLONE_CONFIG_SOURCE` only; rebuild image |
 
 ### Google Drive 404 — fix on the host
 

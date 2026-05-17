@@ -23,7 +23,7 @@ RUN apk add --no-cache \
 COPY scripts/ /scripts/
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 
-RUN chmod +x /docker-entrypoint.sh /scripts/backup.sh /scripts/lib/*.sh
+RUN chmod +x /docker-entrypoint.sh /scripts/backup.sh /scripts/lib/*.sh /scripts/lib/rclone_config.sh
 
 # Sidecar only: root so /config/rclone.conf (often chmod 600 on host) is readable
 USER root
