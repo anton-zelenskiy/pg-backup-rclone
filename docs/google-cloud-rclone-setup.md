@@ -177,6 +177,10 @@ If `lsd gdrive:` fails:
 Verify inside the container:
 
 ```bash
+# to prevent permission denied error
+chmod 644 ~/.config/rclone/rclone.conf
+
+
 docker compose exec db-backup rclone lsd gdrive: --config /var/lib/rclone/rclone.conf
 docker compose exec db-backup grep -E '^(scope|root_folder_id|team_drive)' /config/rclone/rclone.conf
 ```
